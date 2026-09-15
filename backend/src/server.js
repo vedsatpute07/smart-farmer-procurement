@@ -35,6 +35,7 @@ async function start() {
   const app = require("./app");
 
   await connectDatabase();
+  console.log("DATABASE CONNECTION SUCCESS");
 
   const { Notification } = require("./models");
 
