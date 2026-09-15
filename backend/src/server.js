@@ -30,10 +30,6 @@ async function shutdown(exitCode = 0) {
 }
 
 async function start() {
-  /*
-   * Load validated configuration inside start so configuration failures
-   * receive a controlled startup message rather than an uncaught stack trace.
-   */
   const env = require("./config/env");
   const { connectDatabase } = require("./config/db");
   const app = require("./app");
@@ -42,10 +38,6 @@ async function start() {
 
   const { Notification } = require("./models");
 
-  /*
-   * An interrupted provider request may already have been accepted.
-   * Do not automatically resend after restart and risk duplicate messages.
-   */
   await Notification.updateMany(
     { deliveryStatus: "sending" },
     {
@@ -79,44 +71,20 @@ async function start() {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
-process.on("unhandledRejection", () => {
-  console.error("An unhandled server operation failed. Shutting down safely.");
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled rejection:", error?.message || error);
   shutdown(1);
 });
 
-process.on("uncaughtException", () => {
-  console.error("An unexpected server error occurred. Shutting down safely.");
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error?.message || error);
   shutdown(1);
 });
 
 start().catch(async (error) => {
-  const safePrefixes = [
-    "Invalid backend environment",
-    "FRONTEND_URL must",
-    "MONGODB_URI must",
-    "JWT_SECRET and",
-    "OTP_RESEND_COOLDOWN_SECONDS must",
-    "Twilio mode requires",
-    "razorpay_test mode requires",
-    "Live Razorpay keys",
-    "Mock SMS and",
-    "MongoDB transactions require"
-  ];
-
-  if (
-    safePrefixes.some((prefix) =>
-      typeof error.message === "string" &&
-      error.message.startsWith(prefix)
-    )
-  ) {
-    console.error(error.message);
-  } else {
-    console.error(
-      "Backend startup failed. Check MongoDB connectivity, replica-set setup, " +
-      "database permissions and backend/.env. Private connection details were not logged."
-    );
-  }
-
+  console.error("ACTUAL ERROR:", error);
+  console.error(error?.stack || "");
+  
   await mongoose.disconnect().catch(() => {});
   process.exitCode = 1;
 });
